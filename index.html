@@ -1,36 +1,821 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <!-- Cabeçalho com metadados -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GeoImóveis RS/SC</title>
-    <!-- Inclua os CSS e JS necessários -->
+    <title>GeoImóveis RS/SC - Plataforma Inteligente</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <style>
-        /* Seus estilos CSS aqui */
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        #map { height: 100vh; }
-        /* Adicione outros estilos conforme necessário */
+        :root {
+            --primary-color: #1e5799;
+            --secondary-color: #207cca;
+            --highlight-color: #4CAF50;
+            --warning-color: #FF9800;
+            --danger-color: #F44336;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+        
+        #map-container {
+            height: 100vh;
+            position: relative;
+        }
+        
+        #map {
+            height: 100%;
+            z-index: 1;
+        }
+        
+        .sidebar {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 400px;
+            background: white;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            z-index: 1000;
+            transition: transform 0.3s ease;
+        }
+        
+        .filter-panel {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 1rem;
+        }
+        
+        .property-card {
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            border-left: 4px solid var(--highlight-color);
+        }
+        
+        .property-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .property-card.highlight {
+            border-left: 4px solid var(--warning-color);
+            background-color: #fff8e1;
+        }
+        
+        .price-tag {
+            font-weight: 700;
+            color: var(--primary-color);
+            font-size: 1.2rem;
+        }
+        
+        .opportunity-badge {
+            font-size: 0.8rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+        
+        .opportunity-high {
+            background-color: var(--highlight-color);
+            color: white;
+        }
+        
+        .opportunity-medium {
+            background-color: var(--warning-color);
+            color: white;
+        }
+        
+        .opportunity-low {
+            background-color: var(--danger-color);
+            color: white;
+        }
+        
+        .map-controls {
+            position: absolute;
+            top: 10px;
+            right: 420px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        .radius-control {
+            position: absolute;
+            top: 60px;
+            right: 420px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            width: 200px;
+        }
+        
+        @media (max-width: 992px) {
+            .sidebar {
+                width: 100%;
+                height: 40vh;
+                bottom: 0;
+                top: auto;
+                transform: translateY(100%);
+            }
+            
+            .sidebar.active {
+                transform: translateY(0);
+            }
+            
+            .map-controls {
+                right: 10px;
+            }
+            
+            .radius-control {
+                right: 10px;
+                top: 120px;
+            }
+        }
     </style>
 </head>
 <body>
-    <!-- Estrutura básica do seu site -->
-    <div id="map"></div>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-geo-alt-fill"></i> GeoImóveis RS/SC
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <button id="toggle-sidebar" class="btn btn-outline-primary">
+                            <i class="bi bi-list"></i> Painel
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
 
-    <!-- Scripts JavaScript -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        // Seu código JavaScript principal aqui
-        const map = L.map('map').setView([-30.0311, -51.2345], 12);
+    <div id="map-container">
+        <div id="map"></div>
         
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        }).addTo(map);
+        <div class="map-controls">
+            <div class="input-group mb-2">
+                <input type="text" id="address-search" class="form-control" placeholder="Buscar endereço...">
+                <button class="btn btn-primary" id="search-btn">
+                    <i class="bi bi-search"></i>
+                </button>
+            </div>
+            <div class="btn-group w-100">
+                <button class="btn btn-outline-primary" id="draw-radius-btn">
+                    <i class="bi bi-bounding-box"></i> Raio
+                </button>
+                <button class="btn btn-outline-danger" id="clear-radius-btn">
+                    <i class="bi bi-x-circle"></i> Limpar
+                </button>
+            </div>
+        </div>
+        
+        <div class="radius-control" style="display: none;" id="radius-control">
+            <div class="mb-2">
+                <label for="radius-value" class="form-label">Raio: <span id="radius-value-display">1</span> km</label>
+                <input type="range" class="form-range" min="0.1" max="10" step="0.1" value="1" id="radius-value">
+            </div>
+            <button class="btn btn-primary w-100" id="apply-radius-btn">
+                <i class="bi bi-check-circle"></i> Aplicar
+            </button>
+        </div>
+        
+        <div class="sidebar">
+            <div class="container p-3">
+                <div class="filter-panel">
+                    <h5 class="mb-3"><i class="bi bi-funnel"></i> Filtros</h5>
+                    
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label for="property-type" class="form-label">Tipo de Imóvel</label>
+                            <select class="form-select" id="property-type">
+                                <option value="all">Todos</option>
+                                <option value="house">Casas</option>
+                                <option value="apartment">Apartamentos</option>
+                                <option value="land">Terrenos</option>
+                                <option value="commercial">Comercial</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="price-range" class="form-label">Faixa de Preço (R$)</label>
+                            <select class="form-select" id="price-range">
+                                <option value="all">Todos</option>
+                                <option value="0-300000">Até R$ 300.000</option>
+                                <option value="300000-600000">R$ 300.000 - 600.000</option>
+                                <option value="600000-1000000">R$ 600.000 - 1.000.000</option>
+                                <option value="1000000+">Acima de R$ 1.000.000</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="opportunity" class="form-label">Oportunidade</label>
+                            <select class="form-select" id="opportunity">
+                                <option value="all">Todas</option>
+                                <option value="high">Alta Oportunidade</option>
+                                <option value="medium">Média Oportunidade</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="location-filter" class="form-label">Localização</label>
+                            <input type="text" class="form-control" id="location-filter" placeholder="Bairro, cidade...">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="bi bi-house"></i> Imóveis</h5>
+                    <small class="text-muted" id="results-count">0 resultados</small>
+                </div>
+                
+                <div id="property-list" class="row g-3">
+                    <!-- Imóveis serão carregados aqui -->
+                    <div class="col-12 text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                        <p class="mt-2">Buscando os melhores imóveis...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        console.log('Mapa inicializado com sucesso!');
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    
+    <script>
+        // Configurações iniciais
+        const config = {
+            maxResults: 20,
+            defaultRadius: 1, // em km
+            dataSources: {
+                zapImoveis: 'https://api-proxy-zapimoveis.herokuapp.com/search',
+                vivareal: 'https://api-proxy-vivareal.herokuapp.com/search',
+                olx: 'https://api-proxy-olx.herokuapp.com/search'
+            }
+        };
+
+        // Elementos do DOM
+        const elements = {
+            map: L.map('map'),
+            propertyList: document.getElementById('property-list'),
+            resultsCount: document.getElementById('results-count'),
+            toggleSidebar: document.getElementById('toggle-sidebar'),
+            sidebar: document.querySelector('.sidebar'),
+            addressSearch: document.getElementById('address-search'),
+            searchBtn: document.getElementById('search-btn'),
+            drawRadiusBtn: document.getElementById('draw-radius-btn'),
+            clearRadiusBtn: document.getElementById('clear-radius-btn'),
+            radiusControl: document.getElementById('radius-control'),
+            radiusValue: document.getElementById('radius-value'),
+            radiusValueDisplay: document.getElementById('radius-value-display'),
+            applyRadiusBtn: document.getElementById('apply-radius-btn'),
+            filters: {
+                propertyType: document.getElementById('property-type'),
+                priceRange: document.getElementById('price-range'),
+                opportunity: document.getElementById('opportunity'),
+                location: document.getElementById('location-filter')
+            }
+        };
+
+        // Estado da aplicação
+        const state = {
+            properties: [],
+            filteredProperties: [],
+            currentLocation: null,
+            searchRadius: config.defaultRadius,
+            drawnItems: new L.FeatureGroup(),
+            currentCircle: null,
+            mapInitialized: false
+        };
+
+        // Inicialização do mapa
+        function initMap() {
+            elements.map.setView([-30.0311, -51.2345], 12);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            }).addTo(elements.map);
+            
+            // Controles de desenho
+            const drawControl = new L.Control.Draw({
+                draw: {
+                    polygon: false,
+                    polyline: false,
+                    rectangle: false,
+                    circle: false,
+                    marker: false,
+                    circlemarker: false
+                },
+                edit: {
+                    featureGroup: state.drawnItems
+                }
+            });
+            
+            elements.map.addControl(drawControl);
+            elements.map.addLayer(state.drawnItems);
+            
+            // Eventos de desenho
+            elements.map.on(L.Draw.Event.CREATED, function(e) {
+                const layer = e.layer;
+                state.drawnItems.clearLayers();
+                state.drawnItems.addLayer(layer);
+                
+                if (e.layerType === 'circle') {
+                    state.currentLocation = layer.getLatLng();
+                    state.searchRadius = layer.getRadius() / 1000; // Convertendo para km
+                    updateRadiusControls();
+                    applyFilters();
+                }
+            });
+            
+            state.mapInitialized = true;
+        }
+
+        // Carregar dados de imóveis
+        async function loadPropertyData(location = null, radius = null) {
+            try {
+                showLoading();
+                
+                // Simulação de busca em APIs reais (em produção, substitua por chamadas reais)
+                const mockData = await generateMockData(location, radius);
+                
+                state.properties = mockData;
+                applyFilters();
+                
+            } catch (error) {
+                console.error('Erro ao carregar dados:', error);
+                showError('Erro ao carregar dados dos imóveis');
+            }
+        }
+
+        // Gerar dados mockados (substituir por API real em produção)
+        async function generateMockData(center, radius) {
+            // Esta função simula uma API real - em produção, faça chamadas para:
+            // - API do ZAP Imóveis
+            // - API do Viva Real
+            // - API de dados abertos (IPTU, etc)
+            
+            const mockProperties = [];
+            const types = ['house', 'apartment', 'land', 'commercial'];
+            const citiesRS = ['Porto Alegre', 'Canoas', 'Novo Hamburgo', 'São Leopoldo', 'Pelotas'];
+            const citiesSC = ['Florianópolis', 'Balneário Camboriú', 'Joinville', 'Blumenau', 'Itajaí'];
+            
+            const numProperties = 50 + Math.floor(Math.random() * 50);
+            
+            for (let i = 0; i < numProperties; i++) {
+                const isSC = Math.random() > 0.5;
+                const city = isSC 
+                    ? citiesSC[Math.floor(Math.random() * citiesSC.length)] 
+                    : citiesRS[Math.floor(Math.random() * citiesRS.length)];
+                
+                const lat = center ? center.lat + (Math.random() * 0.02 - 0.01) : (isSC ? -27.5 + (Math.random() * 0.5) : -30.0 + (Math.random() * 0.5));
+                const lng = center ? center.lng + (Math.random() * 0.02 - 0.01) : (isSC ? -48.5 + (Math.random() * 0.5) : -51.2 + (Math.random() * 0.5));
+                
+                const type = types[Math.floor(Math.random() * types.length)];
+                const area = type === 'land' 
+                    ? 200 + Math.floor(Math.random() * 800) 
+                    : (type === 'apartment' ? 50 + Math.floor(Math.random() * 100) : 80 + Math.floor(Math.random() * 150));
+                
+                const avgM2 = getAveragePrice(city, type);
+                const priceVariation = 0.8 + Math.random() * 0.4; // Variação de 80% a 120% do preço médio
+                const price = Math.round(area * avgM2 * priceVariation / 1000) * 1000;
+                
+                const opportunityScore = (1 - priceVariation) * 100; // Quanto menor o preço, maior a oportunidade
+                
+                mockProperties.push({
+                    id: `prop-${i}-${Date.now()}`,
+                    title: `${type === 'house' ? 'Casa' : type === 'apartment' ? 'Apartamento' : type === 'land' ? 'Terreno' : 'Ponto Comercial'} em ${city}`,
+                    type: type,
+                    price: price,
+                    area: area,
+                    lat: lat,
+                    lng: lng,
+                    address: `Rua ${Math.floor(Math.random() * 100)}, ${city}`,
+                    city: city,
+                    neighborhood: getRandomNeighborhood(city),
+                    valuePerM2: Math.round(price / area),
+                    marketAvg: avgM2,
+                    opportunity: getOpportunityLevel(opportunityScore),
+                    source: ['zap', 'vivareal', 'olx'][Math.floor(Math.random() * 3)],
+                    photos: Array(3).fill().map((_, i) => `https://source.unsplash.com/random/300x200/?${type},house,${i}`),
+                    description: `${type === 'house' ? 'Casa' : type === 'apartment' ? 'Apartamento' : type === 'land' ? 'Terreno' : 'Ponto comercial'} em ótimo estado no bairro ${getRandomNeighborhood(city)}. ${['Excelente localização', 'Próximo a comércios', 'Área nobre', 'Vista para o mar', 'Condomínio fechado'][Math.floor(Math.random() * 5)]}.`
+                });
+            }
+            
+            // Simular atraso de rede
+            await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
+            
+            return mockProperties;
+        }
+
+        // Funções auxiliares para dados mockados
+        function getAveragePrice(city, type) {
+            const basePrices = {
+                'Porto Alegre': { house: 8000, apartment: 9000, land: 3000, commercial: 7000 },
+                'Florianópolis': { house: 9500, apartment: 11000, land: 5000, commercial: 8500 },
+                'Balneário Camboriú': { house: 12000, apartment: 15000, land: 8000, commercial: 12000 }
+            };
+            
+            return basePrices[city]?.[type] || 
+                   (type === 'house' ? 7000 : 
+                    type === 'apartment' ? 8000 : 
+                    type === 'land' ? 2500 : 6000);
+        }
+
+        function getRandomNeighborhood(city) {
+            const neighborhoods = {
+                'Porto Alegre': ['Moinhos de Vento', 'Bela Vista', 'Petrópolis', 'Cidade Baixa', 'Tristeza'],
+                'Florianópolis': ['Centro', 'Trindade', 'Lagoa da Conceição', 'Campeche', 'Jurerê'],
+                'Balneário Camboriú': ['Centro', 'Barra', 'Praia dos Amores', 'Nações', 'Ariribá']
+            };
+            
+            return neighborhoods[city]?.[Math.floor(Math.random() * neighborhoods[city].length)] || 'Centro';
+        }
+
+        function getOpportunityLevel(score) {
+            if (score > 15) return 'high';
+            if (score > 5) return 'medium';
+            return 'low';
+        }
+
+        // Aplicar filtros
+        function applyFilters() {
+            const typeFilter = elements.filters.propertyType.value;
+            const priceFilter = elements.filters.priceRange.value;
+            const opportunityFilter = elements.filters.opportunity.value;
+            const locationFilter = elements.filters.location.value.toLowerCase();
+            
+            state.filteredProperties = state.properties
+                .filter(prop => {
+                    // Filtro por tipo
+                    if (typeFilter !== 'all' && prop.type !== typeFilter) return false;
+                    
+                    // Filtro por preço
+                    if (priceFilter !== 'all') {
+                        const [min, max] = priceFilter.split('-').map(Number);
+                        if (max && (prop.price < min || prop.price > max)) return false;
+                        if (priceFilter.endsWith('+') && prop.price < min) return false;
+                    }
+                    
+                    // Filtro por oportunidade
+                    if (opportunityFilter !== 'all' && prop.opportunity !== opportunityFilter) return false;
+                    
+                    // Filtro por localização
+                    if (locationFilter && 
+                        !prop.address.toLowerCase().includes(locationFilter) && 
+                        !prop.city.toLowerCase().includes(locationFilter) && 
+                        !prop.neighborhood.toLowerCase().includes(locationFilter)) {
+                        return false;
+                    }
+                    
+                    return true;
+                })
+                .sort((a, b) => {
+                    // Ordenar por melhor oportunidade (maior diferença percentual abaixo da média)
+                    const aScore = (a.marketAvg - a.valuePerM2) / a.marketAvg;
+                    const bScore = (b.marketAvg - b.valuePerM2) / b.marketAvg;
+                    return bScore - aScore;
+                })
+                .slice(0, config.maxResults);
+            
+            updateUI();
+        }
+
+        // Atualizar interface
+        function updateUI() {
+            updateMapMarkers();
+            updatePropertyList();
+            updateResultsCount();
+        }
+
+        function updateMapMarkers() {
+            // Limpar marcadores existentes
+            elements.map.eachLayer(layer => {
+                if (layer instanceof L.CircleMarker || layer instanceof L.Marker) {
+                    elements.map.removeLayer(layer);
+                }
+            });
+            
+            // Adicionar marcadores para propriedades filtradas
+            state.filteredProperties.forEach(property => {
+                const markerColor = getMarkerColor(property.opportunity);
+                const marker = L.circleMarker([property.lat, property.lng], {
+                    radius: 8,
+                    fillColor: markerColor,
+                    color: '#000',
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(elements.map);
+                
+                marker.bindPopup(`
+                    <h6>${property.title}</h6>
+                    <p><strong>Valor:</strong> R$ ${property.price.toLocaleString('pt-BR')}</p>
+                    <p><strong>Área:</strong> ${property.area}m²</p>
+                    <p><strong>Valor/m²:</strong> R$ ${property.valuePerM2.toLocaleString('pt-BR')}</p>
+                    <p><strong>Média região:</strong> R$ ${property.marketAvg.toLocaleString('pt-BR')}</p>
+                    <p><strong>Oportunidade:</strong> ${getOpportunityText(property.opportunity)}</p>
+                    <a href="#" class="btn btn-sm btn-primary w-100" onclick="focusProperty('${property.id}')">Ver detalhes</a>
+                `);
+                
+                marker.propertyId = property.id;
+            });
+            
+            // Ajustar visão do mapa para mostrar todos os marcadores
+            if (state.filteredProperties.length > 0) {
+                const group = new L.featureGroup(state.filteredProperties.map(p => 
+                    L.marker([p.lat, p.lng])
+                );
+                elements.map.fitBounds(group.getBounds().pad(0.1));
+            }
+        }
+
+        function updatePropertyList() {
+            if (state.filteredProperties.length === 0) {
+                elements.propertyList.innerHTML = `
+                    <div class="col-12 text-center py-5">
+                        <i class="bi bi-exclamation-circle text-muted" style="font-size: 3rem;"></i>
+                        <p class="mt-3">Nenhum imóvel encontrado com os filtros atuais</p>
+                        <button class="btn btn-outline-primary" onclick="resetFilters()">
+                            <i class="bi bi-arrow-counterclockwise"></i> Limpar filtros
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+            
+            elements.propertyList.innerHTML = state.filteredProperties.map(property => `
+                <div class="col-12">
+                    <div class="property-card ${property.opportunity === 'high' ? 'highlight' : ''} p-3" id="property-${property.id}">
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <div class="ratio ratio-16x9 bg-light rounded overflow-hidden">
+                                    <img src="${property.photos[0]}" class="object-fit-cover" alt="${property.title}">
+                                </div>
+                            </div>
+                            <div class="col-md-8">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h5 class="mb-1">${property.title}</h5>
+                                        <p class="text-muted mb-2">
+                                            <i class="bi bi-geo-alt"></i> ${property.address}, ${property.neighborhood}
+                                        </p>
+                                    </div>
+                                    <span class="price-tag">R$ ${property.price.toLocaleString('pt-BR')}</span>
+                                </div>
+                                
+                                <div class="d-flex flex-wrap gap-2 mb-2">
+                                    <span class="badge bg-light text-dark">
+                                        <i class="bi bi-arrows-fullscreen"></i> ${property.area}m²
+                                    </span>
+                                    <span class="badge bg-light text-dark">
+                                        <i class="bi bi-currency-dollar"></i> R$ ${property.valuePerM2.toLocaleString('pt-BR')}/m²
+                                    </span>
+                                    <span class="badge ${getOpportunityBadgeClass(property.opportunity)}">
+                                        ${getOpportunityText(property.opportunity)}
+                                    </span>
+                                </div>
+                                
+                                <p class="text-muted small mb-2">${property.description.substring(0, 120)}...</p>
+                                
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        <i class="bi bi-source"></i> ${property.source.toUpperCase()}
+                                    </small>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="focusProperty('${property.id}')">
+                                        <i class="bi bi-zoom-in"></i> Ver no mapa
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateResultsCount() {
+            elements.resultsCount.textContent = `${state.filteredProperties.length} de ${state.properties.length} imóveis`;
+        }
+
+        function updateRadiusControls() {
+            elements.radiusValue.value = state.searchRadius;
+            elements.radiusValueDisplay.textContent = state.searchRadius.toFixed(1);
+        }
+
+        // Funções auxiliares
+        function getMarkerColor(opportunity) {
+            switch(opportunity) {
+                case 'high': return '#4CAF50';
+                case 'medium': return '#FF9800';
+                case 'low': return '#F44336';
+                default: return '#9E9E9E';
+            }
+        }
+
+        function getOpportunityText(opportunity) {
+            switch(opportunity) {
+                case 'high': return '⭐ OPORTUNIDADE';
+                case 'medium': return '💡 BOA OFERTA';
+                case 'low': return '⚠️ ACIMA DA MÉDIA';
+                default: return '💲 PREÇO EQUILIBRADO';
+            }
+        }
+
+        function getOpportunityBadgeClass(opportunity) {
+            switch(opportunity) {
+                case 'high': return 'opportunity-high';
+                case 'medium': return 'opportunity-medium';
+                case 'low': return 'opportunity-low';
+                default: return '';
+            }
+        }
+
+        function showLoading() {
+            elements.propertyList.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <p class="mt-2">Buscando os melhores imóveis...</p>
+                </div>
+            `;
+        }
+
+        function showError(message) {
+            elements.propertyList.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <i class="bi bi-exclamation-triangle text-danger" style="font-size: 3rem;"></i>
+                    <p class="mt-3">${message}</p>
+                    <button class="btn btn-outline-primary" onclick="loadPropertyData()">
+                        <i class="bi bi-arrow-repeat"></i> Tentar novamente
+                    </button>
+                </div>
+            `;
+        }
+
+        // Funções globais para chamada a partir do HTML
+        window.focusProperty = function(id) {
+            const property = state.filteredProperties.find(p => p.id === id);
+            if (property) {
+                elements.map.setView([property.lat, property.lng], 15);
+                document.getElementById(`property-${id}`).scrollIntoView({
+                    behavior: 'smooth'
+                });
+                
+                // Adicionar classe de destaque temporário
+                const element = document.getElementById(`property-${id}`);
+                element.classList.add('bg-light');
+                setTimeout(() => element.classList.remove('bg-light'), 2000);
+            }
+        };
+
+        window.resetFilters = function() {
+            elements.filters.propertyType.value = 'all';
+            elements.filters.priceRange.value = 'all';
+            elements.filters.opportunity.value = 'all';
+            elements.filters.location.value = '';
+            applyFilters();
+        };
+
+        // Event Listeners
+        elements.toggleSidebar.addEventListener('click', () => {
+            elements.sidebar.classList.toggle('active');
+        });
+
+        elements.searchBtn.addEventListener('click', () => {
+            const address = elements.addressSearch.value.trim();
+            if (address) {
+                geocodeAddress(address);
+            }
+        });
+
+        elements.addressSearch.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const address = elements.addressSearch.value.trim();
+                if (address) {
+                    geocodeAddress(address);
+                }
+            }
+        });
+
+        elements.drawRadiusBtn.addEventListener('click', () => {
+            elements.radiusControl.style.display = 'block';
+            new L.Draw.Circle(elements.map, {
+                shapeOptions: {
+                    color: '#1e5799',
+                    fillColor: '#1e5799',
+                    fillOpacity: 0.2
+                }
+            }).enable();
+        });
+
+        elements.clearRadiusBtn.addEventListener('click', () => {
+            state.drawnItems.clearLayers();
+            state.currentLocation = null;
+            state.searchRadius = config.defaultRadius;
+            elements.radiusControl.style.display = 'none';
+            applyFilters();
+        });
+
+        elements.radiusValue.addEventListener('input', () => {
+            state.searchRadius = parseFloat(elements.radiusValue.value);
+            elements.radiusValueDisplay.textContent = state.searchRadius.toFixed(1);
+        });
+
+        elements.applyRadiusBtn.addEventListener('click', () => {
+            if (state.currentLocation) {
+                state.drawnItems.clearLayers();
+                const circle = L.circle(state.currentLocation, {
+                    radius: state.searchRadius * 1000,
+                    color: '#1e5799',
+                    fillColor: '#1e5799',
+                    fillOpacity: 0.2
+                });
+                state.drawnItems.addLayer(circle);
+                loadPropertyData(state.currentLocation, state.searchRadius);
+            }
+            elements.radiusControl.style.display = 'none';
+        });
+
+        // Geocodificação de endereço
+        async function geocodeAddress(address) {
+            try {
+                showLoading();
+                
+                // Em produção, substitua por um serviço de geocodificação real
+                // Exemplo com Nominatim (OpenStreetMap)
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ', RS, Brasil')}`);
+                const data = await response.json();
+                
+                if (data && data.length > 0) {
+                    const location = {
+                        lat: parseFloat(data[0].lat),
+                        lng: parseFloat(data[0].lon)
+                    };
+                    
+                    state.currentLocation = location;
+                    elements.map.setView(location, 15);
+                    
+                    // Desenhar círculo do raio
+                    state.drawnItems.clearLayers();
+                    const circle = L.circle(location, {
+                        radius: state.searchRadius * 1000,
+                        color: '#1e5799',
+                        fillColor: '#1e5799',
+                        fillOpacity: 0.2
+                    });
+                    state.drawnItems.addLayer(circle);
+                    
+                    loadPropertyData(location, state.searchRadius);
+                } else {
+                    showError('Endereço não encontrado');
+                }
+            } catch (error) {
+                console.error('Erro na geocodificação:', error);
+                showError('Erro ao buscar endereço');
+            }
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            loadPropertyData();
+            
+            // Adicionar listeners para filtros
+            Object.values(elements.filters).forEach(filter => {
+                filter.addEventListener('change', applyFilters);
+            });
+            
+            elements.filters.location.addEventListener('input', applyFilters);
+        });
     </script>
 </body>
 </html>
